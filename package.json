@@ -1,0 +1,20 @@
+{
+  "name": "@javeoff/ws-reconnect",
+  "version": "1.0.3",
+  "description": "",
+	"type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+		"build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.12"
+  }
+}
