@@ -12,7 +12,7 @@ export class ReconnectingWebSocket {
   private ws: WebSocket | null = null;
   private url: string;
   private reconnectInterval: number;
-  private maxRetries: number;
+  private maxRetries?: number;
   private retryCount: number = 0;
   private resendOnReconnect: boolean;
   private messageQueue: any[] = [];
@@ -21,48 +21,53 @@ export class ReconnectingWebSocket {
   constructor(url: string, options: ReconnectingWebSocketOptions = {}) {
     this.url = url;
     this.reconnectInterval = options.reconnectInterval || 5000;
-    this.maxRetries = options.maxRetries || 10;
+    this.maxRetries = options.maxRetries;
     this.resendOnReconnect = options.resendOnReconnect || false;
     this.connect();
   }
 
   private connect() {
-    this.ws = new WebSocket(this.url);
+    try {
+      this.ws = new WebSocket(this.url);
 
-    this.ws.on('open', (event: any) => {
-      console.log('WebSocket connection established');
-      this.retryCount = 0;
-      this.emit('open', event);
+      this.ws.on('open', (event: any) => {
+        console.log('WebSocket connection established', this.url);
+        this.retryCount = 0;
+        this.emit('open', event);
 
-      if (this.resendOnReconnect) {
-        this.resendQueuedMessages();
-      }
-    });
+        if (this.resendOnReconnect) {
+          this.resendQueuedMessages();
+        }
+      });
 
-    this.ws.on('message', (data) => {
-      this.emit('message', data);
-    });
+      this.ws.on('message', (data) => {
+        this.emit('message', data);
+      });
 
-    this.ws.on('close', (event) => {
-      console.log('WebSocket connection closed. Attempting to reconnect...');
-      this.emit('close', event);
-      this.reconnect();
-    });
+      this.ws.on('close', (event) => {
+        console.log('WebSocket connection closed. Attempting to reconnect...', this.url);
+        this.emit('close', event);
+        this.reconnect();
+      });
 
-    this.ws.on('error', (error) => {
-      this.emit('error', error);
-      console.error('WebSocket error:', error);
+      this.ws.on('error', (error) => {
+        this.emit('error', error);
+        console.error('WebSocket error:', error);
+        this.ws?.close();
+      });
+    } catch (e) {
+      console.error(e);
       this.ws?.close();
-    });
+      this.reconnect();
+    }
   }
 
-  private reconnect() {
-    if (this.retryCount < this.maxRetries) {
-      setTimeout(() => {
-        this.retryCount++;
-        console.log(`Reconnection attempt #${this.retryCount}`);
-        this.connect();
-      }, this.reconnectInterval);
+  private async reconnect() {
+    if (this.maxRetries ? this.retryCount < this.maxRetries : true) {
+      await new Promise((resolve) => setTimeout(resolve, this.reconnectInterval));
+      this.retryCount++;
+      console.log(`Reconnection attempt #${this.retryCount}`);
+      this.connect();
     } else {
       console.error('Max reconnection attempts reached. Could not reconnect to WebSocket.');
     }
