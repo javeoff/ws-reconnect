@@ -1,9 +1,10 @@
-﻿import WebSocket from 'ws';
+﻿﻿﻿import WebSocket from 'ws';
 
 interface ReconnectingWebSocketOptions {
   reconnectInterval?: number;
   maxRetries?: number;
   resendOnReconnect?: boolean;
+  repeatAllMessages?: boolean;
 }
 
 type EventHandler = (event: any) => void;
@@ -15,7 +16,9 @@ export class ReconnectingWebSocket {
   private maxRetries?: number;
   private retryCount: number = 0;
   private resendOnReconnect: boolean;
+  private repeatAllMessages: boolean;
   private messageQueue: any[] = [];
+  private sentMessages: any[] = [];
   private eventHandlers: { [key: string]: EventHandler[] } = {};
 
   constructor(url: string, options: ReconnectingWebSocketOptions = {}) {
@@ -23,6 +26,7 @@ export class ReconnectingWebSocket {
     this.reconnectInterval = options.reconnectInterval || 5000;
     this.maxRetries = options.maxRetries;
     this.resendOnReconnect = options.resendOnReconnect || false;
+    this.repeatAllMessages = options.repeatAllMessages || false;
     this.connect();
   }
 
@@ -74,9 +78,18 @@ export class ReconnectingWebSocket {
   }
 
   private resendQueuedMessages() {
+    // First resend any failed messages in the queue
     while (this.messageQueue.length > 0) {
       const message = this.messageQueue.shift();
       this.send(message, false);
+    }
+    
+    // Then resend all previously sent messages if repeatAllMessages is enabled
+    if (this.repeatAllMessages) {
+      const messagesToResend = [...this.sentMessages]; // Create copy to avoid modification during iteration
+      for (const message of messagesToResend) {
+        this.send(message, false);
+      }
     }
   }
 
@@ -98,7 +111,11 @@ export class ReconnectingWebSocket {
   public send(data: any, queueOnFailure: boolean = true) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(data, (err) => {
-        if (err) console.error('Send error:', err);
+        if (err) {
+          console.error('Send error:', err);
+        } else if (this.repeatAllMessages) {
+          this.sentMessages.push(data);
+        }
       });
     } else if (queueOnFailure) {
       this.messageQueue.push(data);
@@ -112,6 +129,8 @@ export class ReconnectingWebSocket {
 
   public terminate() {
     this.ws?.terminate();
+    this.messageQueue = [];
+    this.sentMessages = [];
   }
 }
 
